@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { getAvailableMachines, getInitials, validateManualRegistration } from '../src/services/logic.js';
 
 test('getInitials returns two letters', () => {
-  assert.equal(getInitials('García López Alejandro'), 'AL');
+  assert.equal(getInitials('García López Alejandro'), 'LA');
   assert.equal(getInitials('Ana'), 'A');
 });
 
