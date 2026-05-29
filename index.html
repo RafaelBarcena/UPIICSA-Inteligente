@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UPIICSA Inteligente — Prototipo Final</title>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">U</div>
+      <div>
+        <div class="topbar-title">UPIICSA Inteligente — Sala de Cómputo</div>
+        <div style="font-size:11px;color:#7a9cc0">Biblioteca · Sistema de Registro Digital</div>
+      </div>
+      <div class="topbar-sub" id="clock">--:--:--</div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab active" data-tab="alumno">Registro Alumno</div>
+      <div class="tab" data-tab="admin">Panel Encargado</div>
+      <div class="tab" data-tab="reportes">Reportes</div>
+    </div>
+
+    <main>
+      <section id="tab-alumno" class="content">
+        <div id="alert-alumno" class="alert"></div>
+        <div class="card">
+          <div class="card-title">Escanear Credencial IPN</div>
+          <div class="scan-zone" id="scanZone">
+            <div class="scan-icon">🪪</div>
+            <div style="font-size:15px;font-weight:600;color:#aecde8;margin-bottom:6px">Acerca tu credencial al lector</div>
+            <div class="scan-label">Código de barras o QR — lectura automática simulada</div>
+            <button class="scan-btn" id="scanBtn" type="button">▶ Simular escaneo</button>
+          </div>
+          <div style="margin-top:14px">
+            <div id="studentCard" class="student-card">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:44px;height:44px;background:#1e4d8c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff" id="studentInitials">DR</div>
+                <div>
+                  <div class="student-name" id="studentName">—</div>
+                  <div class="student-meta" id="studentMeta">—</div>
+                  <span class="student-badge tag-lci" id="studentCarrera">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="machineCard" style="display:none">
+          <div class="card-title">Selecciona tu equipo</div>
+          <div class="machines-grid" id="machinesGrid"></div>
+          <button class="confirm-btn" id="confirmBtn" disabled type="button">Confirmar Registro de Entrada</button>
+        </div>
+      </section>
+
+      <section id="tab-admin" class="content" style="display:none">
+        <div class="stats-grid" style="margin-bottom:16px">
+          <div class="stat"><div class="stat-num" id="statOcup">0</div><div class="stat-label">Equipos en uso</div></div>
+          <div class="stat"><div class="stat-num" id="statLib">20</div><div class="stat-label">Disponibles</div></div>
+          <div class="stat"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Registros hoy</div></div>
+          <div class="stat"><div class="stat-num" id="statIncomp">0</div><div class="stat-label">Sin salida</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Registro Manual (sin credencial)</div>
+          <div class="manual-form">
+            <div class="form-group">
+              <label>Número de Boleta</label>
+              <input type="text" id="manualBoleta" placeholder="2024XXXXXXX">
+            </div>
+            <div class="form-group">
+              <label>Nombre Completo</label>
+              <input type="text" id="manualNombre" placeholder="Apellidos Nombre">
+            </div>
+            <div class="form-group">
+              <label>Carrera</label>
+              <select id="manualCarrera"></select>
+            </div>
+            <div class="form-group">
+              <label>Número de Equipo</label>
+              <select id="manualEquipo"></select>
+            </div>
+          </div>
+          <button class="confirm-btn" id="manualRegister" type="button" style="margin-top:12px">Registrar Manualmente</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Alumnos Actualmente en Sala</div>
+          <div class="active-list" id="activeList"></div>
+        </div>
+      </section>
+
+      <section id="tab-reportes" class="content" style="display:none">
+        <div class="card">
+          <div class="card-title">Historial de Registros</div>
+          <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <div class="form-group" style="flex:1;min-width:140px">
+              <label>Desde</label>
+              <input type="date" id="filtroDesde">
+            </div>
+            <div class="form-group" style="flex:1;min-width:140px">
+              <label>Hasta</label>
+              <input type="date" id="filtroHasta">
+            </div>
+            <div class="form-group" style="flex:1;min-width:180px">
+              <label>Carrera</label>
+              <select id="filtroCarrera"><option value="">Todas</option></select>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+              <button class="scan-btn" id="btnFilter" type="button">Filtrar</button>
+              <button class="action-btn" id="btnExportCsv" type="button">Exportar CSV</button>
+              <button class="action-btn danger" id="btnReset" type="button">Reiniciar demo</button>
+            </div>
+          </div>
+          <div id="historyTable"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Estadísticas de Uso</div>
+          <div class="stats-grid">
+            <div class="stat"><div class="stat-num">847</div><div class="stat-label">Accesos este mes</div></div>
+            <div class="stat"><div class="stat-num">2.3h</div><div class="stat-label">Promedio de uso</div></div>
+            <div class="stat"><div class="stat-num">96%</div><div class="stat-label">Registros completos</div></div>
+            <div class="stat"><div class="stat-num">7</div><div class="stat-label">Carreras activas</div></div>
+          </div>
+          <div class="section-divider"></div>
+          <p class="small-note">La evidencia de pruebas, arquitectura y decisiones de diseño queda documentada en el informe final incluido en el ZIP.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

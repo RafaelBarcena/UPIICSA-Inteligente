@@ -1,0 +1,50 @@
+INFORME FINAL — UPIICSA Inteligente
+
+1. Diseño y arquitectura
+Se reorganizó el prototipo como una arquitectura modular de estilo MVC ligero:
+- Vista: `index.html` y estilos en `src/styles.css`.
+- Controlador: `src/controllers/appController.js`.
+- Lógica y validación: `src/services/logic.js`.
+- Persistencia: `src/services/storageService.js`.
+- Exportación: `src/services/exportService.js`.
+- Datos base: `src/models/constants.js`.
+
+2. Principios de diseño
+- SOLID: se separaron responsabilidades en archivos pequeños y claros.
+- DRY: la lógica de ocupación, formato y validación se reutiliza en funciones comunes.
+- KISS: la interfaz mantiene flujos sencillos: escanear, seleccionar equipo, confirmar.
+- Legibilidad: nombres descriptivos, estructura clara y comentarios mínimos solo donde aportan valor.
+
+3. Estándares de codificación
+- Nomenclatura consistente.
+- Formato uniforme con funciones cortas.
+- HTML semántico con secciones separadas por módulo funcional.
+
+4. Pruebas y calidad
+- Pruebas unitarias con `node:test` en `tests/validation.test.js` y `tests/storage.test.js`.
+- Las pruebas cubren validación, iniciales, disponibilidad de equipos y persistencia.
+- Workflow de GitHub Actions para ejecutar `npm test` en cada push o pull request.
+
+5. Funcionamiento del prototipo
+- Registro simulado por credencial.
+- Registro manual de alumnos.
+- Gestión de equipos ocupados.
+- Control de alumnos activos.
+- Historial con filtros por fecha y carrera.
+- Exportación CSV del historial.
+- Persistencia local con `localStorage`.
+
+6. Revisión de código
+La estructura quedó lista para revisión por pares:
+- módulos pequeños,
+- lógica comprobable,
+- flujo claro,
+- documentación técnica incluida.
+
+7. Resultados
+El sistema quedó funcional, más mantenible y más fácil de extender.
+
+8. Lecciones aprendidas
+- Dividir la lógica mejora el mantenimiento.
+- Validar datos antes de guardar evita estados inconsistentes.
+- Documentar desde el inicio reduce tiempo de entrega.
