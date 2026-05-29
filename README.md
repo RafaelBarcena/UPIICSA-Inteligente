@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # UPIICSA Inteligente — Prototipo Final
 
 Prototipo funcional para registro y control de una sala de cómputo.
@@ -38,3 +39,4 @@ npm test
 
 ## Historial de commits
 - feat: modular educational prototype
+
