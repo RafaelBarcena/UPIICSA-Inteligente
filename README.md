@@ -35,3 +35,6 @@ npm test
 ## Notas de entrega
 - El prototipo final listo para abrir está en `prototype_final_upiicsa_inteligente.html`.
 - El proyecto modular está en `index.html` y `src/`.
+
+## Historial de commits
+- feat: modular educational prototype
