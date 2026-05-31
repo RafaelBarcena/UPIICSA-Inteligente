@@ -1,4 +1,4 @@
-import { CAREERS, DEMO_STUDENTS, PRESET_OCCUPIED, TOTAL_MACHINES, WARN_MINUTES } from '../models/constants.js';
+import { CAREERS, DEMO_STUDENTS, PRESET_OCCUPIED, TOTAL_MACHINES, SESSION_LIMIT_MINUTES, WARN_MINUTES } from '../models/constants.js';
 import { $, el, $$ } from '../views/dom.js';
 import {
   closeEntryRecord,
@@ -12,6 +12,7 @@ import {
   formatDateTime,
   getAvailableMachines,
   getInitials,
+  pickRandomMachine,
   timerClass,
   validateManualRegistration
 } from '../services/logic.js';
@@ -26,13 +27,13 @@ export function createApp() {
     totalToday: 0,
     demoIndex: 0,
     selectedMachine: null,
-    currentStudent: null
+    currentStudent: null,
+    _scanTimerRecordId: null
   };
 
   let scanTimer = null;
-  let tickInterval = null; // intervalo global de 1 segundo para temporizadores
+  let tickInterval = null;
   const refs = {};
-  // Conjunto de IDs de registros que ya recibieron el aviso de 10 min
   const notified10 = new Set();
   const notifiedExpired = new Set();
 
@@ -41,10 +42,10 @@ export function createApp() {
   // ──────────────────────────────────────────────────────────────
   function hydrate() {
     const persisted = loadState();
-    state.activeRecords = persisted.activeRecords ?? [];
+    state.activeRecords  = persisted.activeRecords  ?? [];
     state.historyRecords = persisted.historyRecords ?? [];
-    state.totalToday = persisted.totalToday ?? 0;
-    state.demoIndex = persisted.demoIndex ?? 0;
+    state.totalToday     = persisted.totalToday     ?? 0;
+    state.demoIndex      = persisted.demoIndex      ?? 0;
   }
 
   function persist() {
@@ -80,7 +81,6 @@ export function createApp() {
     refs.filtroDesde     = $('#filtroDesde');
     refs.filtroHasta     = $('#filtroHasta');
     refs.filtroCarrera   = $('#filtroCarrera');
-    // Auth
     refs.loginOverlay    = $('#loginOverlay');
     refs.loginUsername   = $('#loginUsername');
     refs.loginPassword   = $('#loginPassword');
@@ -134,7 +134,6 @@ export function createApp() {
     if (result.ok) {
       hideLoginOverlay();
       updateSessionBar();
-      // Redirigir al tab que originó el login
       showTab(refs._pendingTab || 'admin');
       refs._pendingTab = null;
     } else {
@@ -167,19 +166,10 @@ export function createApp() {
   // ──────────────────────────────────────────────────────────────
   // MÁQUINAS
   // ──────────────────────────────────────────────────────────────
-  function renderStudentCard(student) {
-    refs.studentInitials.textContent = student.initials || getInitials(student.name);
-    refs.studentName.textContent = student.name;
-    refs.studentMeta.textContent = `Boleta: ${student.boleta}`;
-    refs.studentCarrera.textContent = student.career;
-    refs.studentCard.classList.add('show');
-    refs.machineCard.style.display = 'block';
-  }
-
   function renderMachines() {
-    const occupied = computeOccupiedSet(state.activeRecords, PRESET_OCCUPIED);
+    const occupied  = computeOccupiedSet(state.activeRecords, PRESET_OCCUPIED);
     const available = getAvailableMachines(state.activeRecords);
-    const fragment = document.createDocumentFragment();
+    const fragment  = document.createDocumentFragment();
 
     refs.machinesGrid.innerHTML = '';
     for (let machine = 1; machine <= TOTAL_MACHINES; machine += 1) {
@@ -219,9 +209,9 @@ export function createApp() {
 
     refs.activeList.innerHTML = '';
     state.activeRecords.forEach((record, index) => {
-      const remaining  = computeRemainingSeconds(record.entryAt);
-      const countdown  = formatCountdown(remaining);
-      const tClass     = timerClass(remaining);
+      const remaining   = computeRemainingSeconds(record.entryAt);
+      const countdown   = formatCountdown(remaining);
+      const tClass      = timerClass(remaining);
       const manualBadge = record.manual
         ? ' <span style="background:#2d1a00;color:#ffa726;font-size:10px;padding:1px 6px;border-radius:10px;border:1px solid #5c3400">manual</span>'
         : '';
@@ -249,24 +239,22 @@ export function createApp() {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // TICK DE 1 SEGUNDO — temporizadores + avisos
+  // TICK DE 1 SEGUNDO — relojes + temporizadores + avisos
   // ──────────────────────────────────────────────────────────────
   function tick() {
-    // Actualizar relojes
     renderClocks();
 
-    // Si el panel admin está visible, actualizar temporizadores
     const adminTab = document.getElementById('tab-admin');
     if (adminTab && adminTab.style.display !== 'none') {
       renderActiveList();
     }
 
-    // Revisar avisos de tiempo
+    renderScanTimerTick();
+
     state.activeRecords.forEach(record => {
-      const remaining = computeRemainingSeconds(record.entryAt);
+      const remaining  = computeRemainingSeconds(record.entryAt);
       const warnSeconds = WARN_MINUTES * 60;
 
-      // Aviso a 10 minutos (una sola vez por registro)
       if (remaining <= warnSeconds && remaining > 0 && !notified10.has(record.id)) {
         notified10.add(record.id);
         showAlert(
@@ -275,7 +263,6 @@ export function createApp() {
         );
       }
 
-      // Aviso de tiempo agotado (una sola vez por registro)
       if (remaining <= 0 && !notifiedExpired.has(record.id)) {
         notifiedExpired.add(record.id);
         showAlert(
@@ -287,7 +274,7 @@ export function createApp() {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // ESTADÍSTICAS
+  // ESTADÍSTICAS DEL PANEL ADMIN
   // ──────────────────────────────────────────────────────────────
   function renderStats() {
     const occupied = computeOccupiedSet(state.activeRecords, PRESET_OCCUPIED);
@@ -298,6 +285,33 @@ export function createApp() {
   }
 
   // ──────────────────────────────────────────────────────────────
+  // ESTADÍSTICAS CALCULADAS DE REPORTES
+  // ──────────────────────────────────────────────────────────────
+  function renderReportStats() {
+    const all      = [...state.historyRecords, ...state.activeRecords];
+    const cerrados = state.historyRecords.filter(r => r.durationMinutes);
+
+    const promMinutos = cerrados.length
+      ? Math.round(cerrados.reduce((s, r) => s + r.durationMinutes, 0) / cerrados.length)
+      : null;
+    const promStr = promMinutos
+      ? promMinutos >= 60 ? `${(promMinutos / 60).toFixed(1)}h` : `${promMinutos}m`
+      : '—';
+
+    const completosPct = all.length
+      ? Math.round((state.historyRecords.length / all.length) * 100) + '%'
+      : '—';
+
+    const carreras = new Set(all.map(r => r.student.career)).size;
+
+    const e = id => document.getElementById(id);
+    if (e('rptAccesosMes')) e('rptAccesosMes').textContent = String(all.length);
+    if (e('rptPromedio'))   e('rptPromedio').textContent   = promStr;
+    if (e('rptCompletos'))  e('rptCompletos').textContent  = completosPct;
+    if (e('rptCarreras'))   e('rptCarreras').textContent   = String(carreras);
+  }
+
+  // ──────────────────────────────────────────────────────────────
   // HISTORIAL
   // ──────────────────────────────────────────────────────────────
   function renderHistory() {
@@ -305,10 +319,13 @@ export function createApp() {
     const to     = refs.filtroHasta.value ? new Date(refs.filtroHasta.value + 'T23:59:59') : null;
     const career = refs.filtroCarrera.value;
 
-    const filtered = state.historyRecords.filter(record => {
+    // Incluir registros activos junto al historial cerrado
+    const allRecords = [...state.historyRecords, ...state.activeRecords];
+
+    const filtered = allRecords.filter(record => {
       const entry = new Date(record.entryAt);
       if (from && entry < from) return false;
-      if (to && entry > to)     return false;
+      if (to   && entry > to)   return false;
       if (career && record.student.career !== career) return false;
       return true;
     });
@@ -345,7 +362,7 @@ export function createApp() {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // SCAN
+  // SCAN — asignación automática de equipo
   // ──────────────────────────────────────────────────────────────
   function resetScanUi() {
     refs.scanBtn.textContent = '▶ Simular escaneo';
@@ -362,16 +379,106 @@ export function createApp() {
     scanTimer = window.setTimeout(() => {
       const student = DEMO_STUDENTS[state.demoIndex % DEMO_STUDENTS.length];
       state.demoIndex += 1;
-      state.currentStudent = student;
-      state.selectedMachine = null;
-      renderStudentCard(student);
-      renderMachines();
+
+      // Validar que el alumno no esté ya activo en sala
+      const yaActivo = state.activeRecords.find(r => r.student.boleta === student.boleta);
+      if (yaActivo) {
+        showAlert(
+          `⚠️ ${student.name} ya tiene una sesión activa en el Equipo ${String(yaActivo.machine).padStart(2, '0')}.`,
+          'warning'
+        );
+        resetScanUi();
+        scanTimer = null;
+        persist();
+        return;
+      }
+
+      // Asignar equipo libre al azar (sin paso de confirmación manual)
+      const machine = pickRandomMachine(state.activeRecords);
+      if (!machine) {
+        showAlert('No hay equipos disponibles en este momento.', 'error');
+        resetScanUi();
+        scanTimer = null;
+        return;
+      }
+
+      // Registrar entrada directamente
+      const record = createEntryRecord({ student, machine, manual: false, createdAt: new Date() });
+      state.activeRecords.push(record);
+      state.totalToday += 1;
+      state.currentStudent  = student;
+      state.selectedMachine = machine;
+
+      // Mostrar tarjeta del alumno con el equipo asignado
+      refs.studentInitials.textContent = student.initials || getInitials(student.name);
+      refs.studentName.textContent     = student.name;
+      refs.studentMeta.textContent     = `Boleta: ${student.boleta} · Equipo asignado: ${String(machine).padStart(2, '0')}`;
+      refs.studentCarrera.textContent  = student.career;
+      refs.studentCard.classList.add('show');
+
+      // Ocultar el selector de máquinas (ya no se necesita en el flujo de escaneo)
+      refs.machineCard.style.display = 'none';
       refs.confirmBtn.disabled = true;
-      showAlert(`Credencial leída: ${student.name}`);
+
+      // Mostrar temporizador en el tab alumno
+      renderScanTimer(record);
+
+      renderMachines();
+      renderStats();
+      renderActiveList();
+      showAlert(`✅ ${student.name} registrado en Equipo ${String(machine).padStart(2, '0')}. Sesión iniciada.`);
       resetScanUi();
       scanTimer = null;
       persist();
     }, 1200);
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // TEMPORIZADOR VISIBLE EN TAB ALUMNO
+  // ──────────────────────────────────────────────────────────────
+  function renderScanTimer(record) {
+    const inlineTimer  = document.getElementById('inlineTimer');
+    const progressWrap = document.getElementById('timerProgressWrap');
+    const equipoLabel  = document.getElementById('inlineTimerEquipo');
+    const selfExitWrap = document.getElementById('selfExitWrap');
+    if (inlineTimer)  inlineTimer.style.display  = 'flex';
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (selfExitWrap) selfExitWrap.style.display = 'block';
+    if (equipoLabel)  equipoLabel.textContent = `Equipo ${String(record.machine).padStart(2, '0')}`;
+    state._scanTimerRecordId = record.id;
+    renderScanTimerTick();
+  }
+
+  function renderScanTimerTick() {
+    if (!state._scanTimerRecordId) return;
+    const record = state.activeRecords.find(r => r.id === state._scanTimerRecordId);
+
+    const inlineTimer  = document.getElementById('inlineTimer');
+    const digitsEl     = document.getElementById('inlineTimerDigits');
+    const progressBar  = document.getElementById('timerProgressBar');
+    const progressLbl  = document.getElementById('timerProgressLabel');
+    const progressWrap = document.getElementById('timerProgressWrap');
+
+    if (!record) {
+      // El registro ya fue cerrado (salida registrada desde admin)
+      if (inlineTimer)  inlineTimer.style.display  = 'none';
+      if (progressWrap) progressWrap.style.display = 'none';
+      const sew = document.getElementById('selfExitWrap');
+      if (sew) sew.style.display = 'none';
+      refs.studentCard.classList.remove('show');
+      state._scanTimerRecordId = null;
+      return;
+    }
+
+    const totalSeconds = SESSION_LIMIT_MINUTES * 60;
+    const remaining    = computeRemainingSeconds(record.entryAt);
+    const pct          = (remaining / totalSeconds) * 100;
+    const color        = remaining <= 0 ? '#f44336' : remaining <= 600 ? '#ffa726' : '#4caf50';
+    const label        = remaining <= 0 ? 'Sesión expirada' : `${Math.ceil(remaining / 60)} min restantes`;
+
+    if (digitsEl)    { digitsEl.textContent         = formatCountdown(remaining); digitsEl.style.color = color; }
+    if (progressBar) { progressBar.style.width      = `${pct}%`;                  progressBar.style.background = color; }
+    if (progressLbl) { progressLbl.textContent      = label;                      progressLbl.style.color = color; }
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -385,11 +492,11 @@ export function createApp() {
     state.activeRecords.push(createEntryRecord({
       student: state.currentStudent,
       machine: state.selectedMachine,
-      manual: false,
+      manual:  false,
       createdAt: new Date()
     }));
     state.totalToday += 1;
-    state.currentStudent = null;
+    state.currentStudent  = null;
     state.selectedMachine = null;
     refs.studentCard.classList.remove('show');
     refs.machineCard.style.display = 'none';
@@ -404,9 +511,9 @@ export function createApp() {
   function registerManual() {
     const validation = validateManualRegistration(
       {
-        boleta: refs.manualBoleta.value,
-        name:   refs.manualNombre.value,
-        career: refs.manualCarrera.value,
+        boleta:  refs.manualBoleta.value,
+        name:    refs.manualNombre.value,
+        career:  refs.manualCarrera.value,
         machine: refs.manualEquipo.value
       },
       getAvailableMachines(state.activeRecords)
@@ -419,7 +526,7 @@ export function createApp() {
     state.activeRecords.push(createEntryRecord({
       student,
       machine: validation.machine,
-      manual: true,
+      manual:  true,
       createdAt: new Date()
     }));
     state.totalToday += 1;
@@ -439,9 +546,21 @@ export function createApp() {
     if (!current) return;
     state.historyRecords.unshift(closeEntryRecord(current, new Date()));
     state.activeRecords.splice(index, 1);
-    // Limpiar flags de notificación del registro que salió
     notified10.delete(current.id);
     notifiedExpired.delete(current.id);
+
+    // Si era el registro del timer del tab alumno, limpiar UI
+    if (state._scanTimerRecordId === current.id) {
+      state._scanTimerRecordId = null;
+      const it  = document.getElementById('inlineTimer');
+      const pw  = document.getElementById('timerProgressWrap');
+      const sew = document.getElementById('selfExitWrap');
+      if (it)  it.style.display  = 'none';
+      if (pw)  pw.style.display  = 'none';
+      if (sew) sew.style.display = 'none';
+      refs.studentCard.classList.remove('show');
+    }
+
     renderMachines();
     renderStats();
     renderActiveList();
@@ -450,11 +569,19 @@ export function createApp() {
     showAlert(`Salida registrada para ${current.student.name}.`);
   }
 
+  function registerSelfExit() {
+    if (!state._scanTimerRecordId) return;
+    const idx = state.activeRecords.findIndex(r => r.id === state._scanTimerRecordId);
+    if (idx === -1) return;
+    registerExit(idx);
+  }
+
   // ──────────────────────────────────────────────────────────────
-  // EXPORTACIÓN
+  // EXPORTACIÓN (incluye registros activos)
   // ──────────────────────────────────────────────────────────────
   function exportCsv() {
-    const csv  = recordsToCsv(state.historyRecords);
+    const allRecords = [...state.historyRecords, ...state.activeRecords];
+    const csv  = recordsToCsv(allRecords);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -466,7 +593,8 @@ export function createApp() {
 
   function exportXlsx() {
     try {
-      recordsToXlsx(state.historyRecords);
+      const allRecords = [...state.historyRecords, ...state.activeRecords];
+      recordsToXlsx(allRecords);
     } catch (err) {
       showAlert(`Error al exportar Excel: ${err.message}`, 'error');
     }
@@ -477,17 +605,26 @@ export function createApp() {
   // ──────────────────────────────────────────────────────────────
   function clearDemoData() {
     if (!window.confirm('¿Eliminar todos los datos guardados del prototipo?')) return;
-    state.activeRecords    = [];
-    state.historyRecords   = [];
-    state.totalToday       = 0;
-    state.demoIndex        = 0;
-    state.currentStudent   = null;
-    state.selectedMachine  = null;
+    state.activeRecords      = [];
+    state.historyRecords     = [];
+    state.totalToday         = 0;
+    state.demoIndex          = 0;
+    state.currentStudent     = null;
+    state.selectedMachine    = null;
+    state._scanTimerRecordId = null;
     notified10.clear();
     notifiedExpired.clear();
+
+    const it  = document.getElementById('inlineTimer');
+    const pw  = document.getElementById('timerProgressWrap');
+    const sew = document.getElementById('selfExitWrap');
+    if (it)  it.style.display  = 'none';
+    if (pw)  pw.style.display  = 'none';
+    if (sew) sew.style.display = 'none';
     refs.studentCard.classList.remove('show');
     refs.machineCard.style.display = 'none';
     refs.confirmBtn.disabled = true;
+
     clearState();
     renderMachines();
     renderStats();
@@ -500,7 +637,6 @@ export function createApp() {
   // NAVEGACIÓN DE TABS
   // ──────────────────────────────────────────────────────────────
   function showTab(name) {
-    // Tabs protegidos requieren autenticación
     const protectedTabs = ['admin', 'reportes'];
     if (protectedTabs.includes(name) && !isAuthenticated()) {
       refs._pendingTab = name;
@@ -514,48 +650,37 @@ export function createApp() {
     $$('.tab').forEach(tab => tab.classList.remove('active'));
     document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
 
-    if (name === 'admin') {
-      renderStats();
-      renderActiveList();
-    }
-    if (name === 'reportes') renderHistory();
+    if (name === 'admin')    { renderStats(); renderActiveList(); }
+    if (name === 'reportes') { renderHistory(); renderReportStats(); }
   }
 
   // ──────────────────────────────────────────────────────────────
   // EVENTOS
   // ──────────────────────────────────────────────────────────────
   function wireEvents() {
-    // Scan
     refs.scanZone.addEventListener('click', simulateScan);
     refs.scanBtn.addEventListener('click', event => {
       event.stopPropagation();
       simulateScan();
     });
     refs.confirmBtn.addEventListener('click', registerEntry);
+    document.getElementById('selfExitBtn').addEventListener('click', registerSelfExit);
 
-    // Admin
     $('#manualRegister').addEventListener('click', registerManual);
 
-    // Reportes
     $('#btnFilter').addEventListener('click', renderHistory);
     $('#btnExportCsv').addEventListener('click', exportCsv);
     $('#btnExportXlsx').addEventListener('click', exportXlsx);
     $('#btnReset').addEventListener('click', clearDemoData);
 
-    // Tabs
     $$('.tab').forEach(tab => {
       tab.addEventListener('click', () => showTab(tab.dataset.tab));
     });
 
-    // Auth
     refs.loginBtn.addEventListener('click', handleLogin);
     refs.logoutBtn.addEventListener('click', handleLogout);
-    refs.loginPassword.addEventListener('keydown', e => {
-      if (e.key === 'Enter') handleLogin();
-    });
-    refs.loginUsername.addEventListener('keydown', e => {
-      if (e.key === 'Enter') refs.loginPassword.focus();
-    });
+    refs.loginPassword.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+    refs.loginUsername.addEventListener('keydown', e => { if (e.key === 'Enter') refs.loginPassword.focus(); });
   }
 
   // ──────────────────────────────────────────────────────────────
@@ -567,7 +692,6 @@ export function createApp() {
     wireEvents();
     updateSessionBar();
 
-    // Rellenar selects de carrera
     const careerOptions = ['<option value="">-- Seleccionar --</option>']
       .concat(CAREERS.map(c => `<option>${c}</option>`))
       .join('');
@@ -576,19 +700,13 @@ export function createApp() {
       .concat(CAREERS.map(c => `<option>${c}</option>`))
       .join('');
 
-    // Fechas por defecto en filtro
-    const today = formatDateInput(new Date());
-    refs.filtroDesde.value = today;
-    refs.filtroHasta.value = today;
-
-    // Renderizado inicial
+    // Sin fechas por defecto — el historial muestra todos los registros al abrir
     renderMachines();
     renderStats();
     renderActiveList();
     renderHistory();
     renderClocks();
 
-    // Intervalo único de 1 segundo — relojes + temporizadores + avisos
     tickInterval = setInterval(tick, 1000);
 
     showTab('alumno');

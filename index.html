@@ -96,19 +96,46 @@
           </div>
           <div style="margin-top:14px">
             <div id="studentCard" class="student-card">
+
+              <!-- Fila superior: avatar + datos + timer inline -->
               <div style="display:flex;align-items:center;gap:12px">
-                <div style="width:44px;height:44px;background:#1e4d8c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff" id="studentInitials">DR</div>
-                <div>
+                <div style="width:48px;height:48px;background:#1e4d8c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0" id="studentInitials">--</div>
+                <div style="flex:1">
                   <div class="student-name" id="studentName">—</div>
                   <div class="student-meta" id="studentMeta">—</div>
                   <span class="student-badge tag-lci" id="studentCarrera">—</span>
                 </div>
+                <!-- Temporizador integrado (visible solo cuando hay sesión activa) -->
+                <div id="inlineTimer" style="display:none;flex-direction:column;align-items:center;background:#0a1628;border:1px solid #1a3a5c;border-radius:12px;padding:10px 16px;min-width:100px;text-align:center">
+                  <div style="font-size:9px;color:#7a9cc0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:2px">Tiempo restante</div>
+                  <div id="inlineTimerDigits" style="font-size:26px;font-weight:900;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#4caf50;line-height:1">60:00</div>
+                  <div id="inlineTimerEquipo" style="font-size:10px;color:#4da6ff;margin-top:3px;font-weight:600">Equipo —</div>
+                </div>
               </div>
+
+              <!-- Barra de progreso de tiempo -->
+              <div id="timerProgressWrap" style="display:none;margin-top:12px">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#7a9cc0;margin-bottom:4px">
+                  <span>Inicio de sesión</span>
+                  <span id="timerProgressLabel">60 min restantes</span>
+                </div>
+                <div style="background:#0a1628;border-radius:6px;height:6px;overflow:hidden;border:1px solid #1a3a5c">
+                  <div id="timerProgressBar" style="height:100%;width:100%;background:#4caf50;border-radius:6px;transition:width 1s linear,background .5s"></div>
+                </div>
+              </div>
+
+              <!-- Botón de salida visible solo durante sesión activa -->
+              <div id="selfExitWrap" style="display:none;margin-top:14px">
+                <button id="selfExitBtn" type="button" style="width:100%;background:#3a1616;color:#f44336;border:1px solid #5a2020;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s">
+                  🚪 Registrar mi salida
+                </button>
+              </div>
+
             </div>
           </div>
         </div>
 
-        <!-- Selección de equipo -->
+        <!-- Selección de equipo (solo registro manual desde tab alumno — no se usa en flujo de escaneo) -->
         <div class="card" id="machineCard" style="display:none">
           <div class="card-title">Selecciona tu equipo</div>
           <div class="machines-grid" id="machinesGrid"></div>
@@ -190,14 +217,14 @@
           <div id="historyTable"></div>
         </div>
 
-        <!-- Estadísticas estáticas -->
+        <!-- Estadísticas calculadas del historial real -->
         <div class="card">
           <div class="card-title">Estadísticas de Uso</div>
           <div class="stats-grid">
-            <div class="stat"><div class="stat-num">847</div><div class="stat-label">Accesos este mes</div></div>
-            <div class="stat"><div class="stat-num">2.3h</div><div class="stat-label">Promedio de uso</div></div>
-            <div class="stat"><div class="stat-num">96%</div><div class="stat-label">Registros completos</div></div>
-            <div class="stat"><div class="stat-num">7</div><div class="stat-label">Carreras activas</div></div>
+            <div class="stat"><div class="stat-num" id="rptAccesosMes">0</div><div class="stat-label">Accesos totales</div></div>
+            <div class="stat"><div class="stat-num" id="rptPromedio">—</div><div class="stat-label">Promedio de uso</div></div>
+            <div class="stat"><div class="stat-num" id="rptCompletos">—</div><div class="stat-label">Registros completos</div></div>
+            <div class="stat"><div class="stat-num" id="rptCarreras">0</div><div class="stat-label">Carreras activas</div></div>
           </div>
           <div class="section-divider"></div>
           <p class="small-note">La evidencia de pruebas, arquitectura y decisiones de diseño queda documentada en el informe final incluido en el ZIP.</p>

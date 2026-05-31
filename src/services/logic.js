@@ -44,6 +44,16 @@ export function getAvailableMachines(activeRecords, totalMachines = TOTAL_MACHIN
   return Array.from({ length: totalMachines }, (_, index) => index + 1).filter(machine => !occupied.has(machine));
 }
 
+/**
+ * Elige un equipo disponible al azar. Devuelve null si no hay ninguno libre.
+ * @param {Array} activeRecords
+ */
+export function pickRandomMachine(activeRecords) {
+  const available = getAvailableMachines(activeRecords);
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
 export function validateManualRegistration(payload, availableMachines) {
   const errors = [];
   const boleta = payload.boleta?.trim();
