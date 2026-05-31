@@ -1,4 +1,4 @@
-import { PRESET_OCCUPIED, TOTAL_MACHINES } from '../models/constants.js';
+import { PRESET_OCCUPIED, TOTAL_MACHINES, SESSION_LIMIT_MINUTES } from '../models/constants.js';
 
 export function formatTime(date) {
   return new Intl.DateTimeFormat('es-MX', {
@@ -101,4 +101,37 @@ export function normalizeRecordDates(record) {
     entryAt: typeof record.entryAt === 'string' ? record.entryAt : new Date(record.entryAt).toISOString(),
     exitAt: record.exitAt ? (typeof record.exitAt === 'string' ? record.exitAt : new Date(record.exitAt).toISOString()) : null
   };
+}
+
+/**
+ * Calcula los segundos restantes de sesión para un registro activo.
+ * Devuelve un número entero >= 0. Cuando llega a 0, el tiempo expiró.
+ * @param {string} entryAt  - ISO string del momento de entrada
+ * @param {number} limitMinutes - duración máxima de sesión en minutos (default: SESSION_LIMIT_MINUTES)
+ */
+export function computeRemainingSeconds(entryAt, limitMinutes = SESSION_LIMIT_MINUTES) {
+  const entryMs = new Date(entryAt).getTime();
+  const limitMs = limitMinutes * 60 * 1000;
+  const elapsed = Date.now() - entryMs;
+  return Math.max(0, Math.floor((limitMs - elapsed) / 1000));
+}
+
+/**
+ * Formatea segundos como MM:SS para mostrar en el temporizador.
+ * @param {number} totalSeconds
+ */
+export function formatCountdown(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
+ * Devuelve la clase CSS del temporizador según los segundos restantes.
+ * @param {number} remainingSeconds
+ */
+export function timerClass(remainingSeconds) {
+  if (remainingSeconds <= 0) return 'timer-expired';
+  if (remainingSeconds <= 600) return 'timer-warn';   // ≤ 10 min
+  return 'timer-ok';
 }
