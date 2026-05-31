@@ -5,9 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UPIICSA Inteligente — Prototipo Final</title>
   <link rel="stylesheet" href="./src/styles.css">
+  <!-- SheetJS para exportación Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- LOGIN OVERLAY                                             -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+      <div class="login-logo">U</div>
+      <div class="login-title">Acceso Restringido</div>
+      <div class="login-subtitle">UPIICSA Inteligente — Sala de Cómputo</div>
+
+      <div class="login-field">
+        <label for="loginUsername">Usuario</label>
+        <input type="text" id="loginUsername" placeholder="Nombre de usuario" autocomplete="username">
+      </div>
+      <div class="login-field">
+        <label for="loginPassword">Contraseña</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <div class="login-error" id="loginError"></div>
+
+      <button class="login-submit" id="loginBtn" type="button">Iniciar sesión</button>
+
+      <div class="login-hint">
+        Usuarios de demostración:<br>
+        <code>encargado / upiicsa2026</code> &nbsp;·&nbsp; <code>admin / admin123</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- APP                                                       -->
+  <!-- ══════════════════════════════════════════════════════════ -->
   <div class="app">
+
+    <!-- TOPBAR -->
     <div class="topbar">
       <div class="logo">U</div>
       <div>
@@ -17,15 +54,38 @@
       <div class="topbar-sub" id="clock">--:--:--</div>
     </div>
 
+    <!-- SESSION BAR -->
+    <div class="session-bar" id="sessionBar">
+      <span>Sesión activa:</span>
+      <span class="session-role" id="sessionName">—</span>
+      <button class="logout-btn" id="logoutBtn" type="button">Cerrar sesión</button>
+    </div>
+
+    <!-- TAB BAR -->
     <div class="tab-bar">
       <div class="tab active" data-tab="alumno">Registro Alumno</div>
-      <div class="tab" data-tab="admin">Panel Encargado</div>
-      <div class="tab" data-tab="reportes">Reportes</div>
+      <div class="tab" data-tab="admin">Panel Encargado 🔒</div>
+      <div class="tab" data-tab="reportes">Reportes 🔒</div>
     </div>
 
     <main>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- TAB: REGISTRO ALUMNO                                   -->
+      <!-- ═══════════════════════════════════════════════════════ -->
       <section id="tab-alumno" class="content">
         <div id="alert-alumno" class="alert"></div>
+
+        <!-- Reloj digital -->
+        <div class="digital-clock" id="digitalClock">
+          <div class="dclock-icon">🕐</div>
+          <div>
+            <div class="dclock-time">--:--:--</div>
+            <div class="dclock-date">Cargando fecha...</div>
+          </div>
+        </div>
+
+        <!-- Escáner de credencial -->
         <div class="card">
           <div class="card-title">Escanear Credencial IPN</div>
           <div class="scan-zone" id="scanZone">
@@ -48,6 +108,7 @@
           </div>
         </div>
 
+        <!-- Selección de equipo -->
         <div class="card" id="machineCard" style="display:none">
           <div class="card-title">Selecciona tu equipo</div>
           <div class="machines-grid" id="machinesGrid"></div>
@@ -55,7 +116,12 @@
         </div>
       </section>
 
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- TAB: PANEL ENCARGADO                                   -->
+      <!-- ═══════════════════════════════════════════════════════ -->
       <section id="tab-admin" class="content" style="display:none">
+
+        <!-- Estadísticas -->
         <div class="stats-grid" style="margin-bottom:16px">
           <div class="stat"><div class="stat-num" id="statOcup">0</div><div class="stat-label">Equipos en uso</div></div>
           <div class="stat"><div class="stat-num" id="statLib">20</div><div class="stat-label">Disponibles</div></div>
@@ -63,6 +129,7 @@
           <div class="stat"><div class="stat-num" id="statIncomp">0</div><div class="stat-label">Sin salida</div></div>
         </div>
 
+        <!-- Registro manual -->
         <div class="card">
           <div class="card-title">Registro Manual (sin credencial)</div>
           <div class="manual-form">
@@ -86,12 +153,17 @@
           <button class="confirm-btn" id="manualRegister" type="button" style="margin-top:12px">Registrar Manualmente</button>
         </div>
 
+        <!-- Lista activa con temporizadores -->
         <div class="card">
-          <div class="card-title">Alumnos Actualmente en Sala</div>
+          <div class="card-title">Alumnos Actualmente en Sala — Temporizadores en vivo</div>
           <div class="active-list" id="activeList"></div>
         </div>
+
       </section>
 
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- TAB: REPORTES                                          -->
+      <!-- ═══════════════════════════════════════════════════════ -->
       <section id="tab-reportes" class="content" style="display:none">
         <div class="card">
           <div class="card-title">Historial de Registros</div>
@@ -108,15 +180,17 @@
               <label>Carrera</label>
               <select id="filtroCarrera"><option value="">Todas</option></select>
             </div>
-            <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+            <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
               <button class="scan-btn" id="btnFilter" type="button">Filtrar</button>
-              <button class="action-btn" id="btnExportCsv" type="button">Exportar CSV</button>
+              <button class="action-btn excel" id="btnExportXlsx" type="button">⬇ Excel (.xlsx)</button>
+              <button class="action-btn" id="btnExportCsv" type="button">⬇ CSV</button>
               <button class="action-btn danger" id="btnReset" type="button">Reiniciar demo</button>
             </div>
           </div>
           <div id="historyTable"></div>
         </div>
 
+        <!-- Estadísticas estáticas -->
         <div class="card">
           <div class="card-title">Estadísticas de Uso</div>
           <div class="stats-grid">
@@ -129,8 +203,9 @@
           <p class="small-note">La evidencia de pruebas, arquitectura y decisiones de diseño queda documentada en el informe final incluido en el ZIP.</p>
         </div>
       </section>
+
     </main>
-  </div>
+  </div><!-- .app -->
 
   <script type="module" src="./src/app.js"></script>
 </body>
